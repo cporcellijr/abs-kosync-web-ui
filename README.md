@@ -31,7 +31,7 @@ Run the web UI alongside your existing abs-kosync daemon:
 1. Clone this repository:
 ```bash
 git clone https://github.com/cporcellijr/abs-kosync-web-ui.git
-cd abs-kosync-web-ui
+
 ```
 
 2. Edit `docker-compose.yml` with your settings:
@@ -39,12 +39,8 @@ cd abs-kosync-web-ui
    - Set your Audiobookshelf and KOSync credentials
    - Adjust port if needed (default: 8080)
 
-3. Start the container:
-```bash
-docker compose up -d
-```
 
-4. Access the web UI at `http://localhost:8080`
+3. Access the web UI at `http://localhost:8080`
 
 
 ## Configuration
