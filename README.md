@@ -12,6 +12,10 @@ A web interface for [abs-kosync-bridge](https://github.com/J-Lich/abs-kosync-bri
 - 🔍 Search and filter books
 - 📱 Responsive design
 
+<img width="1469" height="842" alt="image" src="https://github.com/user-attachments/assets/4e4de939-858a-4a23-b2d2-90f71a8db90a" />
+
+<img width="1603" height="737" alt="image" src="https://github.com/user-attachments/assets/cb098523-ed56-4090-bc23-c34cc5afec2a" />
+
 ## Prerequisites
 
 - Running [Audiobookshelf](https://github.com/advplyr/audiobookshelf) instance
