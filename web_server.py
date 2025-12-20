@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import logging
 from pathlib import Path
 from main import SyncManager
 import time
+import secrets
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)  # For session management
 logger = logging.getLogger(__name__)
 
 manager = SyncManager()
@@ -109,6 +111,107 @@ def match():
     return render_template('match.html', 
                          audiobooks=audiobooks, 
                          ebooks=ebooks,
+                         search=search,
+                         get_title=manager._get_abs_title)
+
+@app.route('/batch-match', methods=['GET', 'POST'])
+def batch_match():
+    """Batch matching with queue system"""
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add_to_queue':
+            # Initialize queue in session if not exists
+            if 'queue' not in session:
+                session['queue'] = []
+            
+            abs_id = request.form.get('audiobook_id')
+            ebook_filename = request.form.get('ebook_filename')
+            
+            # Get audiobook details
+            audiobooks = manager.abs_client.get_all_audiobooks()
+            selected_ab = next((ab for ab in audiobooks if ab['id'] == abs_id), None)
+            
+            if selected_ab and ebook_filename:
+                queue_item = {
+                    'abs_id': abs_id,
+                    'abs_title': manager._get_abs_title(selected_ab),
+                    'ebook_filename': ebook_filename,
+                    'cover_url': f"{manager.abs_client.base_url}/api/items/{abs_id}/cover?token={manager.abs_client.token}"
+                }
+                
+                # Check if already in queue
+                if not any(item['abs_id'] == abs_id for item in session['queue']):
+                    session['queue'].append(queue_item)
+                    session.modified = True
+            
+            return redirect(url_for('batch_match', search=request.form.get('search', '')))
+        
+        elif action == 'remove_from_queue':
+            abs_id = request.form.get('abs_id')
+            if 'queue' in session:
+                session['queue'] = [item for item in session['queue'] if item['abs_id'] != abs_id]
+                session.modified = True
+            return redirect(url_for('batch_match'))
+        
+        elif action == 'clear_queue':
+            session['queue'] = []
+            session.modified = True
+            return redirect(url_for('batch_match'))
+        
+        elif action == 'process_queue':
+            # Process all items in queue
+            if 'queue' in session:
+                for item in session['queue']:
+                    ebook_path = Path(f"/books/{item['ebook_filename']}")
+                    if ebook_path.exists():
+                        kosync_doc_id = manager.ebook_parser.get_kosync_id(ebook_path)
+                        
+                        mapping = {
+                            "abs_id": item['abs_id'],
+                            "abs_title": item['abs_title'],
+                            "ebook_filename": item['ebook_filename'],
+                            "kosync_doc_id": kosync_doc_id,
+                            "transcript_file": None,
+                            "status": "pending"
+                        }
+                        
+                        # Remove existing mapping if any
+                        manager.db['mappings'] = [m for m in manager.db['mappings'] 
+                                                   if m['abs_id'] != item['abs_id']]
+                        manager.db['mappings'].append(mapping)
+                
+                manager._save_db()
+                session['queue'] = []
+                session.modified = True
+            
+            return redirect(url_for('index'))
+    
+    # GET request - show batch matching interface
+    search = request.args.get('search', '').strip().lower()
+    
+    audiobooks = manager.abs_client.get_all_audiobooks()
+    ebooks = list(Path("/books").glob("**/*.epub"))
+    
+    if search:
+        audiobooks = [ab for ab in audiobooks 
+                     if search in manager._get_abs_title(ab).lower()]
+        ebooks = [eb for eb in ebooks if search in eb.name.lower()]
+    
+    # Add cover URLs to audiobooks
+    for ab in audiobooks:
+        ab['cover_url'] = f"{manager.abs_client.base_url}/api/items/{ab['id']}/cover?token={manager.abs_client.token}"
+    
+    # Sort ebooks alphabetically
+    ebooks.sort(key=lambda x: x.name.lower())
+    
+    queue = session.get('queue', [])
+    
+    return render_template('batch_match.html', 
+                         audiobooks=audiobooks, 
+                         ebooks=ebooks,
+                         queue=queue,
                          search=search,
                          get_title=manager._get_abs_title)
 
