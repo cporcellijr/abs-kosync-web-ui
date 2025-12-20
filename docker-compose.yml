@@ -1,0 +1,27 @@
+services:
+  abs-kosync-web:
+    build: .
+    container_name: abs_kosync_web
+    restart: unless-stopped
+    command: python /app/web_server.py
+    environment:
+      - TZ=America/New_York
+      - LOG_LEVEL=INFO
+      - ABS_SERVER=https://your-audiobookshelf-url.com
+      - ABS_KEY=your-audiobookshelf-api-key
+      - KOSYNC_SERVER=https://your-kosync-url.com/api/koreader
+      - KOSYNC_USER=your-kosync-username
+      - KOSYNC_KEY=your-kosync-password
+    volumes:
+      - /path/to/your/books:/books
+      - /path/to/your/data:/data
+      - ./web_server.py:/app/web_server.py
+      - ./templates:/app/templates
+    ports:
+      - "8080:5757"
+    networks:
+      - your-network-name
+
+networks:
+  your-network-name:
+    external: true

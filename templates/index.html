@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ABS-KoSync Manager</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { 
+            color: #333; 
+            margin: 0 0 10px 0;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #666;
+            margin: 0 0 30px 0;
+            font-size: 16px;
+        }
+        .btn { 
+            padding: 12px 24px; 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn:hover { 
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-danger { background: #f44336; }
+        .btn-danger:hover { 
+            background: #da190b;
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        }
+        
+        .mapping-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .mapping-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .mapping-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .card-header {
+            display: flex;
+            gap: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .cover-image {
+            width: 80px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        
+        .cover-placeholder {
+            width: 80px;
+            height: 120px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            flex-shrink: 0;
+        }
+        
+        .card-title-section {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 8px 0;
+            word-wrap: break-word;
+        }
+        
+        .card-filename {
+            font-size: 13px;
+            color: #666;
+            margin: 0;
+            word-wrap: break-word;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 8px;
+        }
+        
+        .status-active { background: #4CAF50; color: white; }
+        .status-pending { background: #FF9800; color: white; }
+        .status-processing { background: #2196F3; color: white; }
+        .status-failed, .status-crashed, .status-failed_retry_later { background: #f44336; color: white; }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .progress-section {
+            margin-bottom: 15px;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .progress-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .progress-stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .progress-value {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background: #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+        
+        .sync-info {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            padding: 12px 0 0 0;
+            margin-top: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .card-actions {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 ABS-KoSync Manager</h1>
+        <p class="subtitle">Sync your audiobooks with KOReader seamlessly</p>
+        <a href="/match" class="btn">➕ Add New Mapping</a>
+        
+        {% if mappings %}
+        <div class="mapping-grid">
+            {% for mapping in mappings %}
+            <div class="mapping-card">
+                <div class="card-header">
+                    {% if mapping.cover_url %}
+                    <img src="{{ mapping.cover_url }}" alt="Cover" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="cover-placeholder" style="display:none;">📖</div>
+                    {% else %}
+                    <div class="cover-placeholder">📖</div>
+                    {% endif %}
+                    
+                    <div class="card-title-section">
+                        <h3 class="card-title">{{ mapping.abs_title }}</h3>
+                        <p class="card-filename">{{ mapping.ebook_filename }}</p>
+                        <span class="status-badge status-{{ mapping.status }}">{{ mapping.status }}</span>
+                    </div>
+                </div>
+                
+                {% if mapping.status == 'active' %}
+                <div class="card-body">
+                    <div class="progress-section">
+                        <div class="progress-header">
+                            <div class="progress-stats">
+                                <div class="progress-stat">
+                                    <span>🎧</span>
+                                    <span class="progress-value">{{ '%d:%02d:%02d' | format((mapping.abs_progress|int) // 3600, ((mapping.abs_progress|int) % 3600) // 60, (mapping.abs_progress|int) % 60) }}</span>
+                                </div>
+                                <div class="progress-stat">
+                                    <span>📖</span>
+                                    <span class="progress-value">{{ '%.1f' | format(mapping.kosync_progress) }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" style="width: {{ mapping.kosync_progress }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="sync-info">
+                        Last synced: {{ mapping.last_sync }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="card-actions">
+                    <form method="POST" action="/delete/{{ mapping.abs_id }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this mapping?')">🗑️ Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h2>No mappings configured yet</h2>
+            <p>Click "Add New Mapping" above to get started syncing your audiobooks with KOReader!</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
