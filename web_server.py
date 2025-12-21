@@ -3,229 +3,269 @@ import logging
 from pathlib import Path
 from main import SyncManager
 import time
-import secrets
+
+# ---------------- APP SETUP ----------------
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)  # For session management
+
+# 🔒 MUST be static or sessions (queue) will never persist
+app.secret_key = "kosync-queue-secret"
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 manager = SyncManager()
 
+# ---------------- HELPERS ----------------
+
+def find_ebook_file(filename):
+    """Recursively search /books for a matching ebook filename"""
+    base = Path("/books")
+    matches = list(base.rglob(filename))
+    return matches[0] if matches else None
+
+# ---------------- INDEX ----------------
+
 @app.route('/')
 def index():
     """Show all mappings with progress and cover art"""
+    manager.db = manager._load_db()
+    manager.state = manager._load_state()
+
     mappings = manager.db.get('mappings', [])
-    
-    # Enhance each mapping with real-time data
+
     for mapping in mappings:
         abs_id = mapping.get('abs_id')
         kosync_id = mapping.get('kosync_doc_id')
-        
-        # Get current progress
+
         try:
             abs_progress = manager.abs_client.get_progress(abs_id)
             kosync_progress = manager.kosync_client.get_progress(kosync_id)
-            
+
             mapping['abs_progress'] = abs_progress
-            mapping['kosync_progress'] = kosync_progress * 100  # Convert to percentage
-            
-            # Get last sync time from state
+            mapping['kosync_progress'] = kosync_progress * 100
+
             state = manager.state.get(abs_id, {})
             last_updated = state.get('last_updated', 0)
+
             if last_updated > 0:
-                time_diff = time.time() - last_updated
-                if time_diff < 60:
-                    mapping['last_sync'] = f"{int(time_diff)}s ago"
-                elif time_diff < 3600:
-                    mapping['last_sync'] = f"{int(time_diff/60)}m ago"
+                diff = time.time() - last_updated
+                if diff < 60:
+                    mapping['last_sync'] = f"{int(diff)}s ago"
+                elif diff < 3600:
+                    mapping['last_sync'] = f"{int(diff / 60)}m ago"
                 else:
-                    mapping['last_sync'] = f"{int(time_diff/3600)}h ago"
+                    mapping['last_sync'] = f"{int(diff / 3600)}h ago"
             else:
                 mapping['last_sync'] = "Never"
-            
-            # Get cover URL from Audiobookshelf
-            mapping['cover_url'] = f"{manager.abs_client.base_url}/api/items/{abs_id}/cover?token={manager.abs_client.token}"
-            
+
+            mapping['cover_url'] = (
+                f"{manager.abs_client.base_url}/api/items/"
+                f"{abs_id}/cover?token={manager.abs_client.token}"
+            )
+
         except Exception as e:
             logger.error(f"Error fetching progress for {mapping.get('abs_title')}: {e}")
             mapping['abs_progress'] = 0
             mapping['kosync_progress'] = 0
             mapping['last_sync'] = "Error"
             mapping['cover_url'] = None
-    
+
     return render_template('index.html', mappings=mappings)
+
+# ---------------- SINGLE MATCH ----------------
 
 @app.route('/match', methods=['GET', 'POST'])
 def match():
     if request.method == 'POST':
         abs_id = request.form.get('audiobook_id')
         ebook_filename = request.form.get('ebook_filename')
-        
-        # Find the selected items
+
         audiobooks = manager.abs_client.get_all_audiobooks()
         selected_ab = next((ab for ab in audiobooks if ab['id'] == abs_id), None)
-        
+
         if not selected_ab:
             return "Audiobook not found", 404
-        
-        ebook_path = Path(f"/books/{ebook_filename}")
-        if not ebook_path.exists():
+
+        ebook_path = find_ebook_file(ebook_filename)
+        if not ebook_path:
             return "Ebook not found", 404
-        
-        # Create mapping
+
         kosync_doc_id = manager.ebook_parser.get_kosync_id(ebook_path)
-        final_title = manager._get_abs_title(selected_ab)
-        
+
         mapping = {
-            "abs_id": selected_ab['id'],
-            "abs_title": final_title,
+            "abs_id": abs_id,
+            "abs_title": manager._get_abs_title(selected_ab),
             "ebook_filename": ebook_filename,
             "kosync_doc_id": kosync_doc_id,
             "transcript_file": None,
-            "status": "pending"
+            "status": "pending",
         }
-        
-        # Remove existing mapping if any
-        manager.db['mappings'] = [m for m in manager.db['mappings'] 
-                                   if m['abs_id'] != selected_ab['id']]
+
+        manager.db['mappings'] = [
+            m for m in manager.db['mappings'] if m['abs_id'] != abs_id
+        ]
         manager.db['mappings'].append(mapping)
         manager._save_db()
-        
+
         return redirect(url_for('index'))
-    
-    # GET request - show matching form
+
     search = request.args.get('search', '').strip().lower()
-    
+
     audiobooks = manager.abs_client.get_all_audiobooks()
     ebooks = list(Path("/books").glob("**/*.epub"))
-    
+
     if search:
-        audiobooks = [ab for ab in audiobooks 
-                     if search in manager._get_abs_title(ab).lower()]
+        audiobooks = [
+            ab for ab in audiobooks
+            if search in manager._get_abs_title(ab).lower()
+        ]
         ebooks = [eb for eb in ebooks if search in eb.name.lower()]
-    
-    # Add cover URLs to audiobooks
+
     for ab in audiobooks:
-        ab['cover_url'] = f"{manager.abs_client.base_url}/api/items/{ab['id']}/cover?token={manager.abs_client.token}"
-    
-    return render_template('match.html', 
-                         audiobooks=audiobooks, 
-                         ebooks=ebooks,
-                         search=search,
-                         get_title=manager._get_abs_title)
+        ab['cover_url'] = (
+            f"{manager.abs_client.base_url}/api/items/"
+            f"{ab['id']}/cover?token={manager.abs_client.token}"
+        )
+
+    return render_template(
+        'match.html',
+        audiobooks=audiobooks,
+        ebooks=ebooks,
+        search=search,
+        get_title=manager._get_abs_title,
+    )
+
+# ---------------- BATCH MATCH ----------------
 
 @app.route('/batch-match', methods=['GET', 'POST'])
 def batch_match():
-    """Batch matching with queue system"""
-    
     if request.method == 'POST':
         action = request.form.get('action')
-        
+
+        logger.info(f"BATCH POST ACTION: {action}")
+        logger.info(f"FORM DATA: {dict(request.form)}")
+
         if action == 'add_to_queue':
-            # Initialize queue in session if not exists
-            if 'queue' not in session:
-                session['queue'] = []
-            
+            session.setdefault('queue', [])
+
             abs_id = request.form.get('audiobook_id')
             ebook_filename = request.form.get('ebook_filename')
-            
-            # Get audiobook details
+
             audiobooks = manager.abs_client.get_all_audiobooks()
             selected_ab = next((ab for ab in audiobooks if ab['id'] == abs_id), None)
-            
+
             if selected_ab and ebook_filename:
-                queue_item = {
-                    'abs_id': abs_id,
-                    'abs_title': manager._get_abs_title(selected_ab),
-                    'ebook_filename': ebook_filename,
-                    'cover_url': f"{manager.abs_client.base_url}/api/items/{abs_id}/cover?token={manager.abs_client.token}"
-                }
-                
-                # Check if already in queue
                 if not any(item['abs_id'] == abs_id for item in session['queue']):
-                    session['queue'].append(queue_item)
+                    session['queue'].append({
+                        "abs_id": abs_id,
+                        "abs_title": manager._get_abs_title(selected_ab),
+                        "ebook_filename": ebook_filename,
+                        "cover_url": (
+                            f"{manager.abs_client.base_url}/api/items/"
+                            f"{abs_id}/cover?token={manager.abs_client.token}"
+                        ),
+                    })
                     session.modified = True
-            
+                    logger.info(f"QUEUE SIZE NOW: {len(session['queue'])}")
+
             return redirect(url_for('batch_match', search=request.form.get('search', '')))
-        
+
         elif action == 'remove_from_queue':
             abs_id = request.form.get('abs_id')
-            if 'queue' in session:
-                session['queue'] = [item for item in session['queue'] if item['abs_id'] != abs_id]
-                session.modified = True
+            session['queue'] = [
+                item for item in session.get('queue', [])
+                if item['abs_id'] != abs_id
+            ]
+            session.modified = True
             return redirect(url_for('batch_match'))
-        
+
         elif action == 'clear_queue':
             session['queue'] = []
             session.modified = True
             return redirect(url_for('batch_match'))
-        
+
         elif action == 'process_queue':
-            # Process all items in queue
-            if 'queue' in session:
-                for item in session['queue']:
-                    ebook_path = Path(f"/books/{item['ebook_filename']}")
-                    if ebook_path.exists():
-                        kosync_doc_id = manager.ebook_parser.get_kosync_id(ebook_path)
-                        
-                        mapping = {
-                            "abs_id": item['abs_id'],
-                            "abs_title": item['abs_title'],
-                            "ebook_filename": item['ebook_filename'],
-                            "kosync_doc_id": kosync_doc_id,
-                            "transcript_file": None,
-                            "status": "pending"
-                        }
-                        
-                        # Remove existing mapping if any
-                        manager.db['mappings'] = [m for m in manager.db['mappings'] 
-                                                   if m['abs_id'] != item['abs_id']]
-                        manager.db['mappings'].append(mapping)
-                
-                manager._save_db()
-                session['queue'] = []
-                session.modified = True
-            
+            manager.db = manager._load_db()
+
+            for item in session.get('queue', []):
+                ebook_path = find_ebook_file(item['ebook_filename'])
+
+                if not ebook_path:
+                    logger.error(f"Ebook not found on disk: {item['ebook_filename']}")
+                    continue
+
+                kosync_doc_id = manager.ebook_parser.get_kosync_id(ebook_path)
+                mapping = {
+                    "abs_id": item['abs_id'],
+                    "abs_title": item['abs_title'],
+                    "ebook_filename": item['ebook_filename'],
+                    "kosync_doc_id": kosync_doc_id,
+                    "transcript_file": None,
+                    "status": "pending",
+                }
+                manager.db['mappings'] = [
+                    m for m in manager.db['mappings']
+                    if m['abs_id'] != item['abs_id']
+                ]
+                manager.db['mappings'].append(mapping)
+
+                logger.info(
+                    f"MAPPED: ABS={item['abs_id']} → EPUB={ebook_path}"
+                )
+
+            manager._save_db()
+            session['queue'] = []
+            session.modified = True
             return redirect(url_for('index'))
-    
-    # GET request - show batch matching interface
+
+    # GET
     search = request.args.get('search', '').strip().lower()
-    
+
     audiobooks = manager.abs_client.get_all_audiobooks()
     ebooks = list(Path("/books").glob("**/*.epub"))
-    
+
     if search:
-        audiobooks = [ab for ab in audiobooks 
-                     if search in manager._get_abs_title(ab).lower()]
+        audiobooks = [
+            ab for ab in audiobooks
+            if search in manager._get_abs_title(ab).lower()
+        ]
         ebooks = [eb for eb in ebooks if search in eb.name.lower()]
-    
-    # Add cover URLs to audiobooks
+
     for ab in audiobooks:
-        ab['cover_url'] = f"{manager.abs_client.base_url}/api/items/{ab['id']}/cover?token={manager.abs_client.token}"
-    
-    # Sort ebooks alphabetically
+        ab['cover_url'] = (
+            f"{manager.abs_client.base_url}/api/items/"
+            f"{ab['id']}/cover?token={manager.abs_client.token}"
+        )
+
     ebooks.sort(key=lambda x: x.name.lower())
-    
-    queue = session.get('queue', [])
-    
-    return render_template('batch_match.html', 
-                         audiobooks=audiobooks, 
-                         ebooks=ebooks,
-                         queue=queue,
-                         search=search,
-                         get_title=manager._get_abs_title)
+
+    return render_template(
+        'batch_match.html',
+        audiobooks=audiobooks,
+        ebooks=ebooks,
+        queue=session.get('queue', []),
+        search=search,
+        get_title=manager._get_abs_title,
+    )
+
+# ---------------- DELETE ----------------
 
 @app.route('/delete/<abs_id>', methods=['POST'])
 def delete_mapping(abs_id):
-    manager.db['mappings'] = [m for m in manager.db['mappings'] 
-                             if m['abs_id'] != abs_id]
+    manager.db['mappings'] = [
+        m for m in manager.db['mappings'] if m['abs_id'] != abs_id
+    ]
     manager._save_db()
     return redirect(url_for('index'))
 
+# ---------------- API ----------------
+
 @app.route('/api/status')
 def api_status():
-    """API endpoint for status checks"""
     return jsonify(manager.db)
+
+# ---------------- MAIN ----------------
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5757, debug=False)
