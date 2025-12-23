@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from main import SyncManager
 import time
+import requests
 
 # ---------------- APP SETUP ----------------
 
@@ -24,6 +25,56 @@ def find_ebook_file(filename):
     matches = list(base.rglob(filename))
     return matches[0] if matches else None
 
+def add_to_abs_collection(abs_client, item_id, collection_name="Synced with KOReader"):
+    """Add an audiobook to a collection, creating it if needed"""
+    try:
+        # Get all collections
+        collections_url = f"{abs_client.base_url}/api/collections"
+        r = requests.get(collections_url, headers=abs_client.headers)
+        
+        if r.status_code != 200:
+            logger.error(f"Failed to fetch collections: {r.status_code}")
+            return False
+        
+        collections = r.json().get('collections', [])
+        target_collection = None
+        
+        for coll in collections:
+            if coll.get('name') == collection_name:
+                target_collection = coll
+                break
+        
+        # Create collection if it doesn't exist
+        if not target_collection:
+            lib_url = f"{abs_client.base_url}/api/libraries"
+            r_lib = requests.get(lib_url, headers=abs_client.headers)
+            if r_lib.status_code == 200:
+                libraries = r_lib.json().get('libraries', [])
+                if libraries:
+                    create_payload = {"libraryId": libraries[0]['id'], "name": collection_name}
+                    r_create = requests.post(collections_url, headers=abs_client.headers, json=create_payload)
+                    if r_create.status_code in [200, 201]:
+                        target_collection = r_create.json()
+                        logger.info(f"✅ Created collection '{collection_name}'")
+        
+        if not target_collection:
+            return False
+        
+        # Add book to collection
+        collection_id = target_collection['id']
+        add_url = f"{abs_client.base_url}/api/collections/{collection_id}/book"
+        r_add = requests.post(add_url, headers=abs_client.headers, json={"id": item_id})
+        
+        if r_add.status_code in [200, 201]:
+            logger.info(f"✅ Added book to collection '{collection_name}'")
+            return True
+        else:
+            logger.error(f"Failed to add book: {r_add.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error adding to collection: {e}")
+        return False
 # ---------------- INDEX ----------------
 
 @app.route('/')
@@ -107,6 +158,8 @@ def match():
         ]
         manager.db['mappings'].append(mapping)
         manager._save_db()
+
+        add_to_abs_collection(manager.abs_client, abs_id)
 
         return redirect(url_for('index'))
 
@@ -209,6 +262,8 @@ def batch_match():
                     if m['abs_id'] != item['abs_id']
                 ]
                 manager.db['mappings'].append(mapping)
+
+                add_to_abs_collection(manager.abs_client, item['abs_id'])
 
                 logger.info(
                     f"MAPPED: ABS={item['abs_id']} → EPUB={ebook_path}"
