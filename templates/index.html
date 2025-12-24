@@ -58,6 +58,79 @@
             box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
         }
         
+        .controls-container {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        select, input[type="checkbox"] {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-toggle:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .filter-toggle.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .filter-toggle input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .filter-toggle label {
+            margin: 0;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
         .mapping-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -230,9 +303,29 @@
         <a href="/batch-match" class="btn btn-success">📋 Batch Match</a>
 
         {% if mappings %}
+        <!-- Controls -->
+        <div class="controls-container">
+            <div class="control-group">
+                <label for="sort-select">Sort by:</label>
+                <select id="sort-select">
+                    <option value="title">Title</option>
+                    <option value="progress">Progress</option>
+                    <option value="status">Status</option>
+                    <option value="last_sync">Last Synced</option>
+                </select>
+            </div>
+
+            <div class="filter-toggle" id="filter-toggle">
+                <input type="checkbox" id="filter-current">
+                <label for="filter-current">📖 Show Only Currently Reading</label>
+            </div>
+        </div>
+
         <div class="mapping-grid">
             {% for mapping in mappings %}
-            <div class="mapping-card">
+            <div class="mapping-card" 
+                 data-progress="{{ mapping.kosync_progress }}"
+                 data-last-sync="{{ mapping.last_sync }}">
                 <div class="card-header">
                     {% if mapping.cover_url %}
                     <img src="{{ mapping.cover_url }}" alt="Cover" class="cover-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -290,12 +383,113 @@
         </div>
         {% endif %}
     </div>
-    
+
     <script>
+        const grid = document.querySelector('.mapping-grid');
+        const sortSelect = document.getElementById('sort-select');
+        const filterCheckbox = document.getElementById('filter-current');
+        const filterToggle = document.getElementById('filter-toggle');
+
+        // Load saved preferences
+        const savedSort = localStorage.getItem('abs_kosync_sort') || 'title';
+        const savedFilter = localStorage.getItem('abs_kosync_filter_current') === 'true';
+        
+        if (savedSort) sortSelect.value = savedSort;
+        if (savedFilter) {
+            filterCheckbox.checked = true;
+            filterToggle.classList.add('active');
+        }
+
+        // Convert "Xs ago", "Xm ago", "Xh ago" to seconds for sorting
+        function parseLastSync(syncText) {
+            if (syncText === 'Never') return Infinity;
+            if (syncText === 'Error') return Infinity;
+            
+            const match = syncText.match(/(\d+)([smh])/);
+            if (!match) return Infinity;
+            
+            const value = parseInt(match[1]);
+            const unit = match[2];
+            
+            if (unit === 's') return value;
+            if (unit === 'm') return value * 60;
+            if (unit === 'h') return value * 3600;
+            
+            return Infinity;
+        }
+
+        function sortCards(sortBy) {
+            if (!grid) return;
+            const cards = Array.from(grid.children);
+
+            const sortedCards = cards.sort((a, b) => {
+                if (sortBy === 'title') {
+                    return a.querySelector('.card-title').innerText.localeCompare(b.querySelector('.card-title').innerText);
+                } else if (sortBy === 'progress') {
+                    const aProg = parseFloat(a.dataset.progress) || 0;
+                    const bProg = parseFloat(b.dataset.progress) || 0;
+                    return bProg - aProg; // descending
+                } else if (sortBy === 'status') {
+                    return a.querySelector('.status-badge').innerText.localeCompare(b.querySelector('.status-badge').innerText);
+                } else if (sortBy === 'last_sync') {
+                    const aSync = parseLastSync(a.dataset.lastSync);
+                    const bSync = parseLastSync(b.dataset.lastSync);
+                    return aSync - bSync; // ascending (most recent first)
+                }
+                return 0;
+            });
+
+            sortedCards.forEach(card => grid.appendChild(card));
+        }
+
+        function filterCards(showOnlyCurrent) {
+            if (!grid) return;
+            const cards = Array.from(grid.children);
+
+            cards.forEach(card => {
+                if (showOnlyCurrent) {
+                    const progress = parseFloat(card.dataset.progress) || 0;
+                    // Show if progress > 0 and < 100
+                    if (progress > 0 && progress < 100) {
+                        card.style.display = '';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                } else {
+                    card.style.display = '';
+                }
+            });
+        }
+
+        // Apply initial sort and filter
+        sortCards(sortSelect.value);
+        filterCards(filterCheckbox.checked);
+
+        // Sort dropdown change
+        sortSelect.addEventListener('change', (e) => {
+            const sortBy = e.target.value;
+            localStorage.setItem('abs_kosync_sort', sortBy);
+            sortCards(sortBy);
+        });
+
+        // Filter checkbox change
+        filterCheckbox.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            localStorage.setItem('abs_kosync_filter_current', isChecked);
+            filterToggle.classList.toggle('active', isChecked);
+            filterCards(isChecked);
+        });
+
+        // Make the whole toggle clickable
+        filterToggle.addEventListener('click', (e) => {
+            if (e.target !== filterCheckbox) {
+                filterCheckbox.checked = !filterCheckbox.checked;
+                filterCheckbox.dispatchEvent(new Event('change'));
+            }
+        });
+
         // Auto-refresh every 30 seconds
-        setTimeout(function() {
-            location.reload();
-        }, 30000);
+        setTimeout(() => location.reload(), 30000);
     </script>
 </body>
 </html>
