@@ -4,6 +4,7 @@ from pathlib import Path
 from main import SyncManager
 import time
 import requests
+import os 
 
 # ---------------- APP SETUP ----------------
 
