@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 manager = SyncManager()
 
+
 # ---------------- HELPERS ----------------
 
 def find_ebook_file(filename):
@@ -75,6 +76,116 @@ def add_to_abs_collection(abs_client, item_id, collection_name="Synced with KORe
     except Exception as e:
         logger.error(f"Error adding to collection: {e}")
         return False
+
+def add_to_booklore_shelf(ebook_filename, shelf_name="Linked to ABS"):
+    """Add an ebook to a Booklore shelf by filename"""
+    booklore_url = os.environ.get("BOOKLORE_SERVER")
+    booklore_user = os.environ.get("BOOKLORE_USER")
+    booklore_pass = os.environ.get("BOOKLORE_PASSWORD")
+    
+    if not all([booklore_url, booklore_user, booklore_pass]):
+        logger.debug("Booklore not configured, skipping shelf assignment")
+        return False
+    
+    try:
+        booklore_url = booklore_url.rstrip('/')
+        
+        # 1. Login to get JWT token
+        login_url = f"{booklore_url}/api/v1/auth/login"
+        login_payload = {"username": booklore_user, "password": booklore_pass}
+        r_login = requests.post(login_url, json=login_payload)
+        
+        if r_login.status_code != 200:
+            logger.error(f"Booklore login failed: {r_login.status_code}")
+            return False
+        
+        # Extract JWT token - Booklore returns 'refreshToken'
+        tokens = r_login.json()
+        jwt_token = tokens.get('refreshToken')
+        
+        if not jwt_token:
+            logger.error("Could not find JWT token in login response")
+            return False
+        
+        headers = {"Authorization": f"Bearer {jwt_token}"}
+        
+        # 2. Get all books and find ours by filename
+        books_url = f"{booklore_url}/api/v1/books"
+        r_books = requests.get(books_url, headers=headers)
+        
+        if r_books.status_code != 200:
+            logger.error(f"Failed to fetch Booklore books: {r_books.status_code}")
+            return False
+        
+        books = r_books.json()
+        target_book = None
+        
+        for book in books:
+            if book.get('fileName') == ebook_filename:
+                target_book = book
+                break
+        
+        if not target_book:
+            logger.warning(f"Book '{ebook_filename}' not found in Booklore")
+            return False
+        
+        book_id = target_book['id']
+        
+        # 3. Get all shelves and find/create target shelf
+        shelves_url = f"{booklore_url}/api/v1/shelves"
+        r_shelves = requests.get(shelves_url, headers=headers)
+        
+        if r_shelves.status_code != 200:
+            logger.error(f"Failed to fetch Booklore shelves: {r_shelves.status_code}")
+            return False
+        
+        shelves = r_shelves.json()
+        target_shelf = None
+        
+        for shelf in shelves:
+            if shelf.get('name') == shelf_name:
+                target_shelf = shelf
+                break
+        
+        # Create shelf if it doesn't exist
+        if not target_shelf:
+            create_payload = {
+                "name": shelf_name,
+                "icon": "📚",
+                "iconType": "PRIME_NG"
+            }
+            r_create = requests.post(shelves_url, headers=headers, json=create_payload)
+            
+            if r_create.status_code != 201:
+                logger.error(f"Failed to create Booklore shelf: {r_create.status_code}")
+                return False
+            
+            target_shelf = r_create.json()
+            logger.info(f"✅ Created Booklore shelf '{shelf_name}'")
+        
+        shelf_id = target_shelf['id']
+        
+        # 4. Assign book to shelf
+        assign_url = f"{booklore_url}/api/v1/books/shelves"
+        assign_payload = {
+            "bookIds": [book_id],
+            "shelvesToAssign": [shelf_id],
+            "shelvesToUnassign": []
+        }
+        
+        r_assign = requests.post(assign_url, headers=headers, json=assign_payload)
+        
+        if r_assign.status_code == 200:
+            logger.info(f"✅ Added book to Booklore shelf '{shelf_name}'")
+            return True
+        else:
+            logger.error(f"Failed to assign book to shelf: {r_assign.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error adding to Booklore shelf: {e}")
+        return False
+
 # ---------------- INDEX ----------------
 
 @app.route('/')
@@ -160,6 +271,7 @@ def match():
         manager._save_db()
 
         add_to_abs_collection(manager.abs_client, abs_id)
+        add_to_booklore_shelf(ebook_filename)
 
         return redirect(url_for('index'))
 
@@ -264,6 +376,7 @@ def batch_match():
                 manager.db['mappings'].append(mapping)
 
                 add_to_abs_collection(manager.abs_client, item['abs_id'])
+                add_to_booklore_shelf(item['ebook_filename'])
 
                 logger.info(
                     f"MAPPED: ABS={item['abs_id']} → EPUB={ebook_path}"
