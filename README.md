@@ -1,4 +1,4 @@
-# ABS-KoSync Enhanced v1.0.5
+# ABS-KoSync Enhanced v1.0.5 - Latest
 - ✅ **3-Way Sync** - Storyteller integration alongside ABS ↔ KoSync
 - ✅ **Book Linker** - Automated workflow for Storyteller processing
 
@@ -12,7 +12,7 @@ Three-way sync between Audiobookshelf ↔ KOReader ↔ Storyteller with web UI a
 
 ## What's New in This Version
 
-### v1.0.4 - Latest
+### v1.0.4 
 - ✅ **Filter by Currently Reading** - Show only books in progress (0-99%)
 - ✅ **Sort Options** - Sort by Title, Progress, Status, or Last Sync
 - ✅ **Booklore Integration** - Auto-add matched books to Booklore shelf
