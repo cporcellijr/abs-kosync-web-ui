@@ -226,9 +226,6 @@ This enhanced version modifies the original 2-way sync to include Storyteller:
 - `main.py` - Enhanced with Storyteller sync logic
 - `storyteller_db.py` - New Storyteller database client
 - `web_server.py` - Web UI with Book Linker and integrations
-- `transcriber.py` - AI transcription for text matching
-- `ebook_utils.py` - Enhanced EPUB parsing
-- `api_clients.py` - Enhanced with ABS collection and Booklore support
 
 ### Repository Structure
 ```
