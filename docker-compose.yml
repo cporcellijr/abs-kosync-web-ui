@@ -5,23 +5,53 @@ services:
     restart: unless-stopped
     command: python /app/web_server.py
     environment:
+      # Core Settings
       - TZ=America/New_York
       - LOG_LEVEL=INFO
-      - ABS_SERVER=https://your-audiobookshelf-url.com
-      - ABS_KEY=your-audiobookshelf-api-key
-      - KOSYNC_SERVER=https://your-kosync-url.com/api/koreader
-      - KOSYNC_USER=your-kosync-username
-      - KOSYNC_KEY=your-kosync-password
+      
+      # Audiobookshelf
+      - ABS_SERVER=https://audiobookshelf.example.com
+      - ABS_KEY=your_abs_api_key
+      
+      # KOSync
+      - KOSYNC_SERVER=https://kosync.example.com
+      - KOSYNC_USER=your_username
+      - KOSYNC_KEY=your_password
+      
+      # Storyteller Integration (Optional)
+      - STORYTELLER_DB_PATH=/storyteller_data/storyteller.db
+      - STORYTELLER_USER_ID=your-uuid-from-db
+      - MONITOR_INTERVAL=3600
+      
+      # Booklore Integration (Optional - v1.0.4+)
+      - BOOKLORE_SERVER=https://booklore.example.com
+      - BOOKLORE_USER=your_booklore_username
+      - BOOKLORE_PASSWORD=your_booklore_password
+      - BOOKLORE_SHELF_NAME=Linked to ABS
+      
     volumes:
-      - /path/to/your/books:/books
-      - /path/to/your/data:/data
+      # Core sync data
+      - ./data:/data
+      
+      # Book locations
+      - /path/to/LargeEPUBs:/books
+      - /path/to/Audiobooks:/audiobooks
+      
+      # Storyteller integration (Optional)
+      - /path/to/Books:/media_books
+      - /path/to/Storyteller:/storyteller_data
+      
+      # File overrides (see Technical Details)
+      - ./main.py:/app/src/main.py
+      - ./storyteller_db.py:/app/src/storyteller_db.py
       - ./web_server.py:/app/web_server.py
       - ./templates:/app/templates
+      
     ports:
-      - "8080:5757"
+      - 8080:5757
     networks:
-      - your-network-name
+      - your-network
 
 networks:
-  your-network-name:
+  your-network:
     external: true
