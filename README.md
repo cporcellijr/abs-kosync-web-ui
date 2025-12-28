@@ -1,8 +1,14 @@
 # ABS-KoSync Enhanced v1.0.5
+- ✅ **3-Way Sync** - Storyteller integration alongside ABS ↔ KoSync
+- ✅ **Book Linker** - Automated workflow for Storyteller processing
 
 Three-way sync between Audiobookshelf ↔ KOReader ↔ Storyteller with web UI and AI transcription.
+<img width="1512" height="719" alt="image" src="https://github.com/user-attachments/assets/71c263e8-fe46-4fac-bad2-2812fddff5e2" />
 
-![Dashboard](https://github.com/user-attachments/assets/4e4de939-858a-4a23-b2d2-90f71a8db90a)
+<img width="1459" height="724" alt="image" src="https://github.com/user-attachments/assets/9adbc1aa-8975-4493-ae29-ae0960b29952" />
+
+<img width="1625" height="891" alt="image" src="https://github.com/user-attachments/assets/f99183a7-fef3-417a-b678-c6699ed0bb81" />
+
 
 ## What's New in This Version
 
@@ -16,9 +22,7 @@ Three-way sync between Audiobookshelf ↔ KOReader ↔ Storyteller with web UI a
 - ✅ **ABS Collection Auto-Add** - Matched books automatically added to "Synced with KOReader" collection
 
 ### v1.0.0
-- ✅ **3-Way Sync** - Storyteller integration alongside ABS ↔ KoSync
-- ✅ **Book Linker** - Automated workflow for Storyteller processing
-- ✅ **AI Transcription** - Whisper-based audio transcription for accurate sync
+
 - ✅ **Web UI** - Visual dashboard with cover art and progress tracking
 - ✅ **Batch Matching** - Queue multiple books for sync setup
 
@@ -26,10 +30,8 @@ Three-way sync between Audiobookshelf ↔ KOReader ↔ Storyteller with web UI a
 
 📚 Visual book matching with cover art  
 📊 Real-time 3-way progress tracking  
-🎨 Beautiful, modern interface  
 🔄 Auto-refresh every 30 seconds  
 🔍 Search and filter books  
-📱 Responsive design  
 🤖 AI-powered audio transcription  
 🏷️ Auto-organize in ABS collections  
 📖 Auto-organize in Booklore shelves  
