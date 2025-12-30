@@ -1,13 +1,37 @@
-# ABS-KoSync Enhanced v1.0.5 - Latest
-- ✅ **3-Way Sync** - Storyteller integration alongside ABS ↔ KoSync
-- ✅ **Book Linker** - Automated workflow for Storyteller processing
+# ⚠️ ARCHIVED - Moved to Fork
 
-Three-way sync between Audiobookshelf ↔ KOReader ↔ Storyteller with web UI and AI transcription.
-<img width="1512" height="719" alt="image" src="https://github.com/user-attachments/assets/71c263e8-fe46-4fac-bad2-2812fddff5e2" />
+This repository has been archived and is no longer maintained.
 
-<img width="1459" height="724" alt="image" src="https://github.com/user-attachments/assets/9adbc1aa-8975-4493-ae29-ae0960b29952" />
+## ➡️ **New Location: [abs-kosync-bridge (Enhanced)](https://github.com/cporcellijr/abs-kosync-bridge)**
 
-<img width="1625" height="891" alt="image" src="https://github.com/user-attachments/assets/f99183a7-fef3-417a-b678-c6699ed0bb81" />
+The project has been reorganized as a proper fork of the original [abs-kosync-bridge](https://github.com/jLichti/abs-kosync-bridge) project with significant enhancements.
+
+### What Changed?
+
+**Old repo (abs-kosync-web-ui):**
+- Loose collection of features
+- No clear relationship to original project
+- Inconsistent versioning
+
+**New repo (abs-kosync-bridge fork):**
+- ✅ Proper fork relationship to original project
+- ✅ Clean, organized codebase
+- ✅ Professional documentation
+- ✅ Started fresh at v1.0.0
+- ✅ All features preserved and enhanced
+
+### Please Use the New Repository
+
+**All future development happens here:**
+https://github.com/cporcellijr/abs-kosync-bridge
+
+- Submit issues there
+- Get latest releases there
+- Follow documentation there
+
+---
+
+*This repository remains for historical reference only.*
 
 
 ## What's New in This Version
